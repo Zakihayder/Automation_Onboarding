@@ -1,0 +1,229 @@
+{
+  "name": "Day1_CSV Analyzer",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -64
+      ],
+      "id": "15c5922e-f0ba-40d0-85e7-190122f11be6",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a8dd6cb9-6639-4490-8c72-03a61f7f6ba6",
+              "name": "rawCsv",
+              "value": "F.Name,email address,Phone\nAlice,alice@acme.com,111\nBob,bob@corp.com,222",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e4b276db-a1c4-4e51-a17d-9b0ee2a94650",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee082666-2836-4daf-ae0a-8f3cd9d1c7c6",
+              "name": "rawCsv",
+              "value": "F. Name,email address,Phone\nAlice,alice@acme.com,111\nBob,bob@corp.com,222",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        -144
+      ],
+      "id": "20b7f644-65f5-4ab5-bb98-38a9ef36fbd0",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        432,
+        -80
+      ],
+      "id": "94941bed-1df1-49a5-83a7-1f5e9306596a",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nconst HEADER_MAP = {\n  firstName: ['first name','firstname','f. name','f.name','fname','name'],\n  email: ['email','email address','e-mail','emailaddress','mail']\n};\n\nfunction normalizeKey(rawHeader) {\n  const cleaned = rawHeader.trim().toLowerCase();\n  for (const [targetKey, aliases] of Object.entries(HEADER_MAP)) {\n    if (aliases.includes(cleaned)) return targetKey;\n  }\n  return null;\n}\n\nfor (const item of $input.all()) {\n  const rawCsv = item.json.rawCsv;\n  if (!rawCsv) continue;\n\n  // THIS LINE IS THE FIX — handles literal \\n text AND real newlines\n  const lines = rawCsv.trim().split(/\\r?\\n|\\\\n/);\n  \n  if (lines.length < 2) continue; // skip if no data rows\n\n  const headers = lines[0].split(',');\n  const colMap = {};\n  headers.forEach((h, idx) => {\n    const key = normalizeKey(h);\n    if (key) colMap[idx] = key;\n  });\n\n  for (let i = 1; i < lines.length; i++) {\n    const line = lines[i].trim();\n    if (!line) continue; // skip empty lines\n    \n    const cols = line.split(',');\n    const normalized = {};\n\n    for (const [idx, key] of Object.entries(colMap)) {\n      normalized[key] = cols[idx]?.trim() ?? '';\n    }\n\n    if (normalized.email) {\n      // Email format validation\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (!emailRegex.test(normalized.email)) {\n  // Log invalid and skip\n  console.log(`Invalid email skipped: ${normalized.email}`);\n  continue;\n}\n      results.push({ json: normalized });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -80
+      ],
+      "id": "cde96586-b6ca-4cae-bf03-981969740ed3",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f40706e6-a178-405d-b886-5063d38095a7",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        -80
+      ],
+      "id": "9734c4b6-5bf5-4b23-84f5-9924d20c3d5f",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aea4dea4-6e24-4f9d-a8c7-d06b0b141ab6",
+              "name": "error",
+              "value": "error: \"Missing email — record dropped\"",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        16
+      ],
+      "id": "ddc62b6d-5a33-4d4e-939f-18ac8e0c6764",
+      "name": "Edit Fields2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a33d31ef-02c5-448e-ba9f-f68ce9181fe9",
+  "meta": {
+    "instanceId": "a910b7e31ae6081abf0aed39baee4e8ddaf2c486776c6d27bec18e0e4918c5e6"
+  },
+  "id": "OSxyDG1qMzWir0JB",
+  "tags": []
+}
