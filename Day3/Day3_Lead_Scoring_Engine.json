@@ -1,0 +1,488 @@
+{
+  "name": "Day3_Lead_Scoring_Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-score",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "342b00a3-5aab-4c31-8de1-81b782222dda",
+      "name": "Webhook",
+      "webhookId": "5b41bf8a-8af8-4517-85db-549c8828c51b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\n\n// Validate required fields\nif (!body.email) {\n  return [{json:{\n    error: true,\n    statusCode: 400,\n    message: 'email is required'\n  }}];\n}\nif (!body.linkedinUrl) {\n  return [{json:{\n    error: true,\n    statusCode: 400,\n    message: 'linkedinUrl is required'\n  }}];\n}\n\n// Extract domain from email\nconst emailDomain = body.email.split('@')[1]?.toLowerCase();\n\nreturn [{json:{\n  email: body.email.toLowerCase().trim(),\n  linkedinUrl: body.linkedinUrl,\n  companySize: body.companySize || 0,\n  emailDomain: emailDomain,\n  error: false\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c9d25f64-aac5-4c42-97af-c0b29de658d7",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "58af2649-8180-4d4c-a3c6-f0380a0ddc34",
+              "leftValue": "{{ $json.error }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "456d40a4-a1c1-4a04-a166-6f40dc3f34e2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        624,
+        -64.61110977675192
+      ],
+      "id": "2a154409-12f9-4b97-8300-7ed5069742c5",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8080/api/v2/tables/m40yne20yn9800k/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "where",
+              "value": "=(domain,eq,{{ $json.emailDomain }})"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "nc_pat_UiyWldmsVwrL8YLz8SizXsKJprc0gWnJCm0mwRzH"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        96
+      ],
+      "id": "b13b5d55-35aa-4b2b-b7a6-717bd81bde4c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cd411a34-843f-4f4b-9a74-84cd6ab3292d",
+              "leftValue": "={{ $json.pageInfo.totalRows }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        96
+      ],
+      "id": "f77c01f1-900b-4473-abe6-6db38acbc4e8",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "=\"error\": \"Domain blacklisted\", \"domain\": \"{{ $json.emailDomain }}\"}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1040,
+        33.63031050931511
+      ],
+      "id": "dd6ed04b-4837-41bd-a627-8303accd6fa5",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Retrieve original lead data from earlier in workflow\n// (use $('Validation Code').first().json if needed)\nconst email = data.email || '';\nconst emailDomain = data.emailDomain || '';\nconst companySize = data.companySize || 0;\n\n// Known generic/free email providers\nconst genericDomains = [\n  'gmail.com','yahoo.com','hotmail.com',\n  'outlook.com','aol.com','protonmail.com',\n  'icloud.com','mail.com','temp.com'\n];\n\nconst isGeneric = genericDomains.includes(emailDomain);\nconst isCorporate = !isGeneric;\n\n// Scoring logic (from Day 3 brief)\nlet score = 0;\nlet emailType = '';\n\nif (isGeneric) {\n  score += 10;\n  emailType = 'generic';\n} else if (isCorporate) {\n  score += 50;\n  emailType = 'corporate';\n}\n\n// Bonus points for company size\nif (companySize > 1000) score += 30;\nelse if (companySize > 100) score += 15;\nelse if (companySize > 10) score += 5;\n\nreturn [{json:{\n  email: email,\n  emailDomain: emailDomain,\n  emailType: emailType,\n  companySize: companySize,\n  score: score,\n  scoredAt: new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        192
+      ],
+      "id": "54f69c2b-5757-4d16-82d6-8325273a1974",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8080/api/v2/tables/m40yne20yn9800k/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "where",
+              "value": "=(domain,eq,{{ $json.emailDomain }})"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "nc_pat_UiyWldmsVwrL8YLz8SizXsKJprc0gWnJCm0mwRzH"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1248,
+        192
+      ],
+      "id": "16342e81-778a-4a64-a1b2-ddf080757888",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cd1a484b-a26d-46ef-87a6-84885fa0b3cc",
+              "leftValue": "={{ $json.pageInfo.totalRows }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        192
+      ],
+      "id": "3b93d972-b75a-42cb-8d41-c6ea5407d827",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/v2/tables/m40yne20yn9800k/records",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "nc_pat_UiyWldmsVwrL8YLz8SizXsKJprc0gWnJCm0mwRzH"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "{   \"email\": \"{{ $json.email }}\",   \"emailType\": \"{{ $json.emailType }}\",   \"companySize\": {{ $json.companySize }},   \"score\": {{ $json.score }},   \"createdAt\": \"{{ $json.scoredAt }}\" }"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1680,
+        304
+      ],
+      "id": "3b4abe6d-4708-45c4-b34c-c50087751f6a",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8080/api/v2/tables/mssfs93o9tr2bnz/records",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "nc_pat_UiyWldmsVwrL8YLz8SizXsKJprc0gWnJCm0mwRzH"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"{{ $node[\"Webhook\"].json[\"email\"] }}\",\n  \"linkedinUrl\": \"{{ $node[\"Webhook\"].json[\"linkedinUrl\"] }}\",\n  \"companySize\": {{ $node[\"Webhook\"].json[\"companySize\"] || 0 }},\n  \"emailType\": \"{{ $json.emailType || \"unknown\" }}\",\n  \"score\": {{ $json.score || 0 }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1680,
+        80
+      ],
+      "id": "aaa35a7a-dcde-4d66-a604-5bd9be4c118b",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1920,
+        176
+      ],
+      "id": "f8101bbf-3181-44dc-a753-a26c41389514",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"email\": \"{{ $('Webhook').item.json.email }}\",\n  \"score\": {{ $('Code in JavaScript').item.json.score || 0 }},\n  \"emailType\": \"{{ $('Code in JavaScript').item.json.emailType || \"unknown\" }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2160,
+        176
+      ],
+      "id": "f001da5c-38d6-4b0b-a082-09dcebbf4fc4",
+      "name": "Respond to Webhook2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "cff7e072-8626-4e09-8133-e4235fd2d55d",
+  "meta": {
+    "instanceId": "a910b7e31ae6081abf0aed39baee4e8ddaf2c486776c6d27bec18e0e4918c5e6"
+  },
+  "id": "hjM0FPGRJwLF4riG",
+  "tags": []
+}
