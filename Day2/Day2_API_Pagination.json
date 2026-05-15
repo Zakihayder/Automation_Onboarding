@@ -1,0 +1,561 @@
+{
+  "name": "Day2_API_Pagination",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c01624b2-f618-4b8e-9958-58946bb8af5c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e55e9d29-5125-4185-947a-75e94d2bb741",
+              "name": "currentPage",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "id": "fc41185c-a3e4-4271-9819-aca3b00e94d8",
+              "name": "allRecords",
+              "value": "[]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a3569042-714c-4ff9-878a-a0bfb9b7f68c",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "https://jsonplaceholder.typicode.com/users",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "=_page",
+              "value": "={{ $json.currentPage }}"
+            },
+            {
+              "name": "=_limit",
+              "value": "=50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "4273d18d-f13b-4439-967b-df5aabff9e1e",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "12b1d123-f5ef-44c9-af84-f46ec09cdc44",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        -64
+      ],
+      "id": "88194a64-f00d-4afd-93f4-6c6b9967e22d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst recordCount = items.length;\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    count: recordCount,\n    hasMore: recordCount >= 10\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -64
+      ],
+      "id": "e4bd859a-e6fc-4f85-a524-84b9cac2ee34",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e5644b6b-aef5-493c-a24c-c4c4f1318d03",
+              "name": "=currentPage",
+              "value": "={ $json.currentPage + 1 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        112
+      ],
+      "id": "7ce9f595-1b81-46da-b6e6-614ac8af64a1",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0c601d03-eeac-402d-8ba4-f9dc2e8d027d",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "1f81e6d6-bb26-4cce-b326-3d0226e6fb75",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        -208
+      ],
+      "id": "900d2bc2-2c8c-48d4-9d4e-9d3076325c69",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "url": "=https://jsonplaceholder.typicode.com/posts?userId={{ $json.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2416,
+        112
+      ],
+      "id": "bf4bdc50-e6b1-4992-b742-16ac50fc7e5c",
+      "name": "Enrich: Fetch User Posts"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const posts = Array.isArray(item.json) ? item.json : [];\n  results.push({\n    json: {\n      userId: posts[0]?.userId ?? null,\n      postCount: posts.length,\n      firstPostTitle: posts[0]?.title ?? 'No posts'\n    }\n  });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2656,
+        112
+      ],
+      "id": "dde07a57-7984-47fe-8425-c0f68b32e4af",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simulate 30% random failure rate PER ITEM\nconst shouldFail = Math.random() < 0.3;\n\nif (shouldFail) {\n  // Return error as data — don't throw\n  // (throwing kills the item completely)\n  return {\n    json: {\n      ...($input.first().json),\n      _error: true,\n      _errorMessage: 'Simulated API timeout — random failure'\n    }\n  };\n}\n\n// Pass through normally if no failure\nreturn {\n  json: {\n    ...($input.first().json),\n    _error: false\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -208
+      ],
+      "id": "ff859f64-69da-4960-acd5-59b86d5dbe5f",
+      "name": "Simulate: Random API Failure",
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ef6644cc-de74-4b2b-8570-725ad584c8e4",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1584,
+        -208
+      ],
+      "id": "47c5bb9c-eeb5-4923-bf90-a18ee9f88034",
+      "name": "If1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        -368
+      ],
+      "id": "150b5970-7fe9-4c97-981c-6e945b9fdad8",
+      "name": "Wait",
+      "webhookId": "2433f445-a823-4f3f-b153-d54050707962"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retry attempt — only tries once\nconst shouldFail = Math.random() < 0.3;\nif (shouldFail) {\n  // Retry also failed — log to dead letter\n  return [{ json: {\n    status: 'FAILED',\n    reason: 'Retry also failed after 5s wait',\n    timestamp: new Date().toISOString(),\n    originalItem: $input.first().json\n  }}];\n}\n// Retry succeeded\nreturn [{ json: {\n  status: 'RETRY_SUCCESS',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -368
+      ],
+      "id": "f172a3d6-ce0a-4c49-b889-8d027313ffea",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aa4e325e-5a13-4908-8a05-82e4ba8489f9",
+              "name": "logged",
+              "value": true,
+              "type": "string"
+            },
+            {
+              "id": "f561b7f6-56f5-4b61-9403-799192977562",
+              "name": "queue",
+              "value": "DeadLetterQueue",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2416,
+        -368
+      ],
+      "id": "40e09905-378e-41a4-b750-3c46f6f39f53",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1904,
+        0
+      ],
+      "id": "c3ddacd3-1f37-4efe-a69d-4573cb5e18ba",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2176,
+        112
+      ],
+      "id": "774a3676-0763-404a-a463-1ccec9bc316c",
+      "name": "Wait1",
+      "webhookId": "c2956ec5-3d7f-4f4c-8839-db5f3c8fc6f1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst successful = items.filter(i => i.json.status !== 'FAILED');\nconst failed = items.filter(i => i.json.status === 'FAILED');\n\nreturn [{\n  json: {\n    totalProcessed: items.length,\n    successful: successful.length,\n    failed: failed.length,\n    successRate: Math.round((successful.length / items.length) * 100) + '%',\n    completedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -112
+      ],
+      "id": "ccca4380-45aa-4c2a-8c25-50a79067db83",
+      "name": "summary code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Simulate: Random API Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich: Fetch User Posts": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate: Random API Failure": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        []
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "summary code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Enrich: Fetch User Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9003d7d8-f7f2-4b26-8f21-d39295f6beef",
+  "meta": {
+    "instanceId": "a910b7e31ae6081abf0aed39baee4e8ddaf2c486776c6d27bec18e0e4918c5e6"
+  },
+  "id": "IcP8XA1WYLi21aHD",
+  "tags": []
+}
