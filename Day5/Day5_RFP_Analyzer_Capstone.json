@@ -1,0 +1,301 @@
+{
+  "name": "Day5_RFP_Analyzer_Capstone",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rfp-intake",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [ 0, 0 ],
+      "id": "01355810-dbee-4d60-ade1-9004c0593a8c",
+      "name": "Webhook",
+      "webhookId": "2ec4abc0-71a2-49c2-9be1-9609ce15f4ef"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\n\nif (!body.rfpText) {\n  return [{json:{\n    error: true,\n    message: 'rfpText field is required'\n  }}];\n}\n\nreturn [{json:{\n  rfpTitle:  body.rfpTitle  || 'Untitled RFP',\n  rfpText:   body.rfpText,\n  receivedAt: new Date().toISOString(),\n  source:    body.source || 'webhook',\n  error:     false\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 208, 0 ],
+      "id": "1f2d0e43-0829-416c-b017-17485ce65d41",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: {{ $json.rfpTitle }}\nDocument Text: {{ $json.rfpText }}",
+        "options": {
+          "systemMessage": "=You are an automated data extraction and logic API engine. You cannot speak conversational English. Do not write markdown blocks like ```json or any intro/outro text. Output RAW JSON ONLY.\n\nFollow this strict step-by-step processing pipeline for the incoming RFP text:\n\nSTEP 1: FACTUAL EXTRACTION\n- rfpTitle: Extract the exact title of the RFP project.\n- budget: Find the exact budget number. If the text says \"$50,000\", convert this to the raw integer 50000. Do not return 0 or null if a number is present.\n- deadline: Look for the deadline. If it says \"June 2025\", convert it to the date string \"2025-06-01\".\n- techStack: Extract a clean, comma-separated list of all technical tools mentioned (e.g., \"Swift, React Native, Firebase\").\n\nSTEP 2: SCORING EVALUATION\nStart with a base score of 0. Add or subtract points exactly according to these rules:\n- Contains \"n8n\": +40 points\n- Contains \"Python\": +30 points\n- Contains \"REST API\" or \"webhook\": +20 points\n- Contains \"PostgreSQL\" or \"database\": +10 points\n- Contains Mobile Keywords (\"iOS\", \"Android\", \"Swift\", \"React Native\"): Deduct 50 points.\n\nCalculate the final fitScore (ensure it does not drop below 0 or exceed 100).\n\nSTEP 3: DECISION MATRIX\n- Set isFit to true ONLY if your calculated fitScore is 50 or higher. Otherwise, set isFit to false.\n- Set recommendation to \"BID\" if isFit is true. Otherwise, set recommendation to \"NO_BID\".\n- fitReason: Write a brief, one-sentence logical explanation based on your final fitScore.\n\nYour 100% complete output must look exactly like this JSON schema:\n{\n  \"rfpTitle\": \"string\",\n  \"budget\": number,\n  \"deadline\": \"string\",\n  \"techStack\": \"string\",\n  \"isFit\": boolean,\n  \"fitScore\": number,\n  \"fitReason\": \"string\",\n  \"recommendation\": \"string\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [ 416, 0 ],
+      "id": "34666aee-81ad-4bfb-96f2-8b0f38bf8c5b",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [ 416, 208 ],
+      "id": "f2141b9d-6a0f-40b2-b03b-74efd62435c4",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "GROQ_CREDENTIAL_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json.output ||\n                   $input.first().json.text   ||\n                   $input.first().json.message || '';\n\nconst cleaned = aiResponse\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  return [{json:{\n    error: true,\n    message: 'AI did not return valid JSON: ' + aiResponse.substring(0,200)\n  }}];\n}\n\nreturn [{json:{\n  ...parsed,\n  parsedAt: new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 768, 0 ],
+      "id": "5013fa78-5997-4cab-950e-8299c4ec97c1",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "70006c72-ef1e-4b70-8882-9fab628db1ad",
+              "leftValue": "={{ $json.isFit }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [ 976, 0 ],
+      "id": "983cb8bf-5626-43fc-becd-21c12f2f5370",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"channel\": \"#error-alerts\",\n  \"text\": \"New Good Fit RFP awaiting approval\",\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*New RFP — Good Fit Detected*\\n*{{ $json.rfpTitle }}*\\nScore: {{ $json.fitScore }}/100 | Budget: {{ $json.budget }}\\n{{ $json.fitReason }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\"type\": \"plain_text\", \"text\": \"Approve — Save to Pipeline\"},\n          \"style\": \"primary\",\n          \"value\": \"{{ $json.rfpTitle }}\",\n          \"action_id\": \"approve_rfp\"\n        },\n        {\n          \"type\": \"button\",\n          \"text\": {\"type\": \"plain_text\", \"text\": \"Reject\"},\n          \"style\": \"danger\",\n          \"value\": \"{{ $json.rfpTitle }}\",\n          \"action_id\": \"reject_rfp\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [ 1184, -80 ],
+      "id": "d324988b-393d-4ae6-b52e-d09a1e2232ea",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOCODB_BASE_URL }}/api/v1/db/data/noco/{{ $env.NOCODB_PROJECT_ID }}/Opportunities",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "={{ $env.NOCODB_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rfpTitle\": \"{{ $('If').item.json.rfpTitle }}\",\n  \"budget\": {{ $('If').item.json.budget || 0 }},\n  \"deadline\": \"{{ $('If').item.json.deadline }}\",\n  \"techStack\": \"{{ $('If').item.json.techStack }}\",\n  \"fitReason\": \"{{ $('If').item.json.fitReason }}\",\n  \"slackAlerted\": true,\n  \"createdDate\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [ 1408, -80 ],
+      "id": "53457ef4-8386-4c1c-85db-13aa9b86c08a",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOCODB_BASE_URL }}/api/v1/db/data/noco/{{ $env.NOCODB_PROJECT_ID }}/Archive",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xc-token",
+              "value": "={{ $env.NOCODB_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rfpTitle\":        \"{{ $('If').first().json.rfpTitle }}\",\n  \"rejectionReason\": \"{{ $('If').first().json.fitReason }}\",\n  \"techStack\":       \"{{ $('If').first().json.techStack }}\",\n  \"budget\":          {{ $('If').first().json.budget || 0 }},\n  \"analyzedAt\":      \"{{ $('If').first().json.parsedAt }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [ 1280, 144 ],
+      "id": "7ec7583c-b056-4916-a8bf-75f8cde7ae2c",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [ 1648, 48 ],
+      "id": "698db14d-feaf-4b68-8c04-f8189fd3eefe",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [ [] ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "LF13c8r2o1x0y4rV",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "4b6bd0cc-ea97-48a0-9409-b53df99b9468",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "INSTANCE_ID_PLACEHOLDER"
+  },
+  "id": "msEVBGWdOD4sMTE3",
+  "tags": []
+}
