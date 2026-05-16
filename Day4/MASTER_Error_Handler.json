@@ -1,0 +1,223 @@
+{
+  "name": "MASTER_Error_Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "68dad117-6266-43d3-8a10-70cb09713681",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\n\nconst workflowName = e.workflow?.name    || 'Unknown Workflow';\nconst workflowId   = e.workflow?.id      || 'N/A';\nconst nodeName     = e.node?.name        || 'Unknown Node';\nconst nodeType     = e.node?.type        || 'Unknown Type';\nconst errorMsg     = e.error?.message    || 'No message';\nconst executionUrl = e.execution?.url    || 'N/A';\nconst timestamp    = new Date().toISOString();\n\n// Severity classification\nlet severity   = 'LOW';\nlet slackColor = 'warning';\n\nif (errorMsg.includes('timeout') || errorMsg.includes('ECONNREFUSED')) {\n  severity = 'MEDIUM'; slackColor = 'warning';\n}\nif (errorMsg.includes('401') || errorMsg.includes('403')) {\n  severity = 'HIGH'; slackColor = 'danger';\n}\nif (nodeName.toLowerCase().includes('nocodb') ||\n    nodeName.toLowerCase().includes('crm')) {\n  severity = 'CRITICAL'; slackColor = 'danger';\n}\n\nreturn [{json:{\n  workflowName, workflowId,\n  nodeName, nodeType,\n  errorMsg, executionUrl,\n  timestamp, severity, slackColor\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e3d114be-02d4-48f5-abcd-01887db00364",
+      "name": "Format error + Classify severity"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "123",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"username\": \"n8n Error Bot\",\n  \"channel\": \"#error-alerts\",\n  \"attachments\": [{\n    \"color\": \"{{ $json.slackColor }}\",\n    \"title\": \"Workflow Failure — {{ $json.severity }}\",\n    \"fields\": [\n      {\"title\":\"Workflow\",\"value\":\"{{ $json.workflowName }}\",\"short\":true},\n      {\"title\":\"Failed Node\",\"value\":\"{{ $json.nodeName }}\",\"short\":true},\n      {\"title\":\"Severity\",\"value\":\"{{ $json.severity }}\",\"short\":true},\n      {\"title\":\"Node Type\",\"value\":\"{{ $json.nodeType }}\",\"short\":true},\n      {\"title\":\"Error\",\"value\":\"{{ $json.errorMsg }}\",\"short\":false},\n      {\"title\":\"Debug URL\",\"value\":\"{{ $json.executionUrl }}\",\"short\":false}\n    ],\n    \"footer\": \"n8n Error Handler\",\n    \"ts\": {{ Math.floor(Date.now()/1000) }}\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "21cac10e-8fef-4def-97ea-d3ad0997ad3a",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst workflowId = data.workflowId || 'unknown';\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.errorLog) staticData.errorLog = {};\nif (!staticData.errorLog[workflowId]) {\n  staticData.errorLog[workflowId] = [];\n}\n\nconst now = Date.now();\nconst ONE_MIN = 60 * 1000;\n\nstaticData.errorLog[workflowId].push(now);\nstaticData.errorLog[workflowId] = staticData.errorLog[workflowId]\n  .filter(t => now - t < ONE_MIN);\n\nconst errorCount = staticData.errorLog[workflowId].length;\nconst shouldTrip = errorCount >= 10;\n\nreturn [{json:{\n  ...data, errorCount, shouldTrip,\n  threshold: 10, window: '1 minute'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "b3f4f9d6-e852-4eff-a9ca-984a127552af",
+      "name": "Circuit Breaker Counter"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3ae6c040-d9da-488d-8613-933cc7bc766d",
+              "leftValue": "={{ $json.shouldTrip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "42e0e9b6-aa1e-4c9c-8336-48f2a842db6d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/api/v1/workflows/{{ $json.workflowId }}/deactivate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY_PLACEHOLDER"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"active\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        -96
+      ],
+      "id": "6838a740-566a-4c5a-94ab-7b656f674501",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "123",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"username\": \"n8n Circuit Breaker\",\n  \"channel\": \"#error-alerts\",\n  \"attachments\": [{\n    \"color\": \"danger\",\n    \"title\": \"CIRCUIT BREAKER TRIPPED\",\n    \"text\": \"Workflow *{{ $json.workflowName }}* has been AUTOMATICALLY DISABLED after {{ $json.errorCount }} errors in 1 minute.\",\n    \"fields\": [\n      {\"title\":\"Workflow ID\",\"value\":\"{{ $json.workflowId }}\",\"short\":true},\n      {\"title\":\"Error Count\",\"value\":\"{{ $json.errorCount }} in 1 min\",\"short\":true},\n      {\"title\":\"Action Taken\",\"value\":\"Workflow deactivated via n8n API\",\"short\":false},\n      {\"title\":\"Next Step\",\"value\":\"Manual review required before re-enabling\",\"short\":false}\n    ],\n    \"footer\": \"n8n Circuit Breaker\"\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1248,
+        -96
+      ],
+      "id": "32267069-e420-4d68-925a-56c8febd52ce",
+      "name": "HTTP Request2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format error + Classify severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format error + Classify severity": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Circuit Breaker Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Circuit Breaker Counter": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "LF13c8r2o1x0y4rV",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "3468629f-906f-47f9-ab11-a78bebd1161f",
+  "meta": {
+    "instanceId": "a910b7e31ae6081abf0aed39baee4e8ddaf2c486776c6d27bec18e0e4918c5e6"
+  },
+  "id": "LF13c8r2o1x0y4rV",
+  "tags": []
+}
