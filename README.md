@@ -369,4 +369,4 @@ others. Single point of observability for the entire automation stack.
 | Day 2 | Pagination loop + retry pattern in action | https://www.loom.com/share/90fb7ecd29654380a5e4eea1634d4189 |
 | Day 3 | Lead Scoring API — curl demo + blacklist test | https://www.loom.com/share/61bbbb3e070f4409a029f6f737b7f0f5 |
 | Day 4 | Error handler firing live + circuit breaker explanation | https://www.loom.com/share/462efa56034b44b282e37ad6b55d3ad5 |
-| Day 5 | Full RFP pipeline — good fit and bad fit end-to-end | [Add link] |
+| Day 5 | Full RFP pipeline — good fit and bad fit end-to-end | https://www.loom.com/share/704c8cf4e88a49688652094b7e166f64 |
