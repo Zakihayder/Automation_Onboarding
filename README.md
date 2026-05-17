@@ -365,7 +365,7 @@ others. Single point of observability for the entire automation stack.
 
 | Day | Topic | Link |
 |-----|-------|------|
-| Day 1 | CSV Normalizer — live demo + code walkthrough | [Add link] |
+| Day 1 | CSV Normalizer — live demo + code walkthrough | https://www.loom.com/share/9fd78bd82dc746b5939284ce8f2e4e60 |
 | Day 2 | Pagination loop + retry pattern in action | [Add link] |
 | Day 3 | Lead Scoring API — curl demo + blacklist test | [Add link] |
 | Day 4 | Error handler firing live + circuit breaker explanation | [Add link] |
